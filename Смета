@@ -1,0 +1,1602 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>СметаПро — Система управления сметами</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root {
+    --primary: #1e3a5f;
+    --accent: #2563eb;
+    --success: #16a34a;
+    --danger: #dc2626;
+    --warning: #d97706;
+    --bg: #f1f5f9;
+    --card: #ffffff;
+    --border: #e2e8f0;
+    --text: #1e293b;
+    --muted: #64748b;
+    --section-bg: #334155;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+  /* LAYOUT */
+  .app { display: flex; min-height: 100vh; }
+  .sidebar { width: 260px; background: var(--primary); color: white; display: flex; flex-direction: column; position: fixed; top: 0; left: 0; height: 100vh; z-index: 100; overflow-y: auto; }
+  .sidebar-logo { padding: 20px; border-bottom: 1px solid rgba(255,255,255,0.1); }
+  .sidebar-logo h1 { font-size: 20px; font-weight: 800; letter-spacing: -0.5px; }
+  .sidebar-logo p { font-size: 11px; color: rgba(255,255,255,0.5); margin-top: 2px; }
+  .sidebar-nav { padding: 12px 0; flex: 1; }
+  .nav-item { display: flex; align-items: center; gap: 10px; padding: 10px 20px; cursor: pointer; transition: all 0.2s; font-size: 14px; color: rgba(255,255,255,0.7); border-left: 3px solid transparent; }
+  .nav-item:hover { background: rgba(255,255,255,0.08); color: white; }
+  .nav-item.active { background: rgba(255,255,255,0.12); color: white; border-left-color: #60a5fa; }
+  .nav-item svg { width: 18px; height: 18px; flex-shrink: 0; }
+  .nav-section { padding: 16px 20px 6px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: rgba(255,255,255,0.3); }
+  .main { margin-left: 260px; flex: 1; padding: 28px; }
+
+  /* PAGES */
+  .page { display: none; }
+  .page.active { display: block; }
+
+  /* CARDS */
+  .card { background: var(--card); border-radius: 12px; border: 1px solid var(--border); box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+  .card-header { padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+  .card-body { padding: 20px; }
+
+  /* BUTTONS */
+  .btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; border: none; transition: all 0.2s; text-decoration: none; }
+  .btn-primary { background: var(--accent); color: white; }
+  .btn-primary:hover { background: #1d4ed8; }
+  .btn-success { background: var(--success); color: white; }
+  .btn-success:hover { background: #15803d; }
+  .btn-danger { background: var(--danger); color: white; }
+  .btn-danger:hover { background: #b91c1c; }
+  .btn-outline { background: white; color: var(--text); border: 1px solid var(--border); }
+  .btn-outline:hover { background: var(--bg); }
+  .btn-sm { padding: 5px 10px; font-size: 12px; }
+  .btn-ghost { background: transparent; color: var(--muted); border: 1px solid var(--border); }
+  .btn-ghost:hover { background: var(--bg); color: var(--text); }
+  .btn svg { width: 15px; height: 15px; }
+
+  /* INPUTS */
+  input, select, textarea { font-family: inherit; font-size: 13px; }
+  .input { width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; outline: none; transition: border-color 0.2s, box-shadow 0.2s; background: white; color: var(--text); }
+  .input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
+
+  /* MODAL */
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 200; align-items: center; justify-content: center; }
+  .modal-overlay.open { display: flex; }
+  .modal { background: white; border-radius: 16px; box-shadow: 0 20px 60px rgba(0,0,0,0.2); width: 90%; max-width: 600px; max-height: 85vh; display: flex; flex-direction: column; }
+  .modal-header { padding: 20px 24px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+  .modal-header h3 { font-size: 16px; font-weight: 700; color: var(--primary); }
+  .modal-body { padding: 24px; overflow-y: auto; flex: 1; }
+  .modal-footer { padding: 16px 24px; border-top: 1px solid var(--border); display: flex; gap: 8px; justify-content: flex-end; }
+  .modal-close { background: none; border: none; cursor: pointer; color: var(--muted); padding: 4px; border-radius: 6px; }
+  .modal-close:hover { background: var(--bg); color: var(--text); }
+
+  /* FORM */
+  .form-grid { display: grid; gap: 16px; }
+  .form-grid-2 { grid-template-columns: 1fr 1fr; }
+  .form-grid-3 { grid-template-columns: 1fr 1fr 1fr; }
+  .form-group { display: flex; flex-direction: column; gap: 5px; }
+  .form-label { font-size: 12px; font-weight: 600; color: var(--muted); }
+
+  /* ESTIMATES LIST */
+  .estimates-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; margin-top: 20px; }
+  .estimate-card { background: white; border-radius: 12px; border: 1px solid var(--border); padding: 20px; cursor: pointer; transition: all 0.2s; }
+  .estimate-card:hover { border-color: var(--accent); box-shadow: 0 4px 12px rgba(37,99,235,0.1); transform: translateY(-1px); }
+  .estimate-card-title { font-size: 15px; font-weight: 700; color: var(--primary); margin-bottom: 6px; }
+  .estimate-card-meta { font-size: 12px; color: var(--muted); display: flex; flex-direction: column; gap: 3px; }
+  .estimate-card-total { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+  .estimate-card-amount { font-size: 16px; font-weight: 800; color: var(--accent); }
+  .badge { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+  .badge-blue { background: #dbeafe; color: #1d4ed8; }
+  .badge-green { background: #dcfce7; color: #15803d; }
+  .badge-orange { background: #fed7aa; color: #c2410c; }
+
+  /* ESTIMATE EDITOR */
+  .editor-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 20px; gap: 16px; }
+  .editor-title { font-size: 22px; font-weight: 800; color: var(--primary); }
+  .editor-meta { font-size: 13px; color: var(--muted); margin-top: 4px; display: flex; gap: 12px; flex-wrap: wrap; }
+  .editor-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+  /* TABLE */
+  .table-wrap { overflow-x: auto; border-radius: 12px; border: 1px solid var(--border); background: white; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  thead tr { background: var(--primary); color: white; }
+  thead th { padding: 10px 8px; text-align: left; font-weight: 600; font-size: 12px; white-space: nowrap; }
+  thead th:first-child { border-radius: 0; }
+  .section-row td { background: var(--section-bg); color: white; font-weight: 700; font-size: 13px; padding: 8px 10px; }
+  .item-row td { padding: 4px 6px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  .item-row:hover td { background: #f8fafc; }
+  .item-row.alt td { background: #f8fafc; }
+  .item-row.alt:hover td { background: #f1f5f9; }
+  .table-input { width: 100%; border: none; background: transparent; padding: 4px 6px; border-radius: 6px; outline: none; font-size: 13px; font-family: inherit; color: var(--text); }
+  .table-input:focus { background: #eff6ff; box-shadow: 0 0 0 2px rgba(37,99,235,0.2); }
+  .table-input.num { text-align: right; }
+  .computed { text-align: right; padding: 4px 8px; font-weight: 600; white-space: nowrap; }
+  .total-row td { background: #f0f9ff; font-weight: 700; padding: 8px 10px; border-top: 2px solid #bae6fd; }
+
+  /* TOTALS PANEL */
+  .totals-panel { background: white; border-radius: 12px; border: 1px solid var(--border); padding: 20px; min-width: 320px; }
+  .totals-title { font-size: 14px; font-weight: 800; color: var(--primary); margin-bottom: 14px; }
+  .totals-row { display: flex; justify-content: space-between; align-items: center; padding: 5px 0; font-size: 13px; }
+  .totals-row.separator { border-top: 1px solid var(--border); margin-top: 6px; padding-top: 10px; }
+  .totals-row.grand { border-top: 2px solid var(--accent); margin-top: 8px; padding-top: 12px; }
+  .totals-label { color: var(--muted); }
+  .totals-value { font-weight: 700; color: var(--text); }
+  .totals-value.accent { color: var(--accent); font-size: 15px; }
+  .totals-value.red { color: var(--danger); }
+
+  /* CATALOG */
+  .catalog-search { position: relative; margin-bottom: 16px; }
+  .catalog-search input { padding-left: 36px; }
+  .catalog-search svg { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--muted); width: 16px; height: 16px; }
+  .catalog-category { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); padding: 10px 0 6px; border-bottom: 1px solid var(--border); margin-bottom: 4px; }
+  .catalog-item { display: flex; align-items: center; justify-content: space-between; padding: 8px 10px; border-radius: 8px; cursor: pointer; transition: background 0.15s; gap: 8px; }
+  .catalog-item:hover { background: #eff6ff; }
+  .catalog-item-name { font-size: 13px; font-weight: 500; flex: 1; }
+  .catalog-item-prices { font-size: 11px; color: var(--muted); text-align: right; white-space: nowrap; }
+  .catalog-item-unit { font-size: 11px; color: var(--muted); width: 40px; }
+
+  /* NOTIFICATION */
+  .notification { position: fixed; top: 20px; right: 20px; background: var(--success); color: white; padding: 12px 20px; border-radius: 10px; font-size: 13px; font-weight: 600; z-index: 999; box-shadow: 0 4px 16px rgba(0,0,0,0.15); opacity: 0; transform: translateY(-10px); transition: all 0.3s; pointer-events: none; }
+  .notification.show { opacity: 1; transform: translateY(0); }
+
+  /* IMPORT */
+  .drop-zone { border: 2px dashed var(--border); border-radius: 12px; padding: 40px; text-align: center; cursor: pointer; transition: all 0.2s; }
+  .drop-zone:hover, .drop-zone.dragover { border-color: var(--accent); background: #eff6ff; }
+  .drop-zone svg { width: 40px; height: 40px; color: var(--muted); margin-bottom: 10px; }
+  .drop-zone p { font-size: 14px; color: var(--muted); }
+  .drop-zone strong { color: var(--accent); }
+
+  /* STATS */
+  .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px; }
+  .stat-card { background: white; border-radius: 10px; border: 1px solid var(--border); padding: 14px; text-align: center; }
+  .stat-value { font-size: 24px; font-weight: 800; }
+  .stat-label { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+  /* MISC */
+  .page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+  .page-title { font-size: 22px; font-weight: 800; color: var(--primary); }
+  .empty-state { text-align: center; padding: 60px 20px; color: var(--muted); }
+  .empty-state svg { width: 48px; height: 48px; margin-bottom: 12px; opacity: 0.3; }
+  .divider { height: 1px; background: var(--border); margin: 16px 0; }
+  .flex { display: flex; }
+  .gap-2 { gap: 8px; }
+  .gap-3 { gap: 12px; }
+  .items-center { align-items: center; }
+  .justify-end { justify-content: flex-end; }
+  .mt-4 { margin-top: 16px; }
+  .mt-3 { margin-top: 12px; }
+  .text-sm { font-size: 13px; }
+  .text-xs { font-size: 11px; }
+  .font-bold { font-weight: 700; }
+  .text-muted { color: var(--muted); }
+  .text-danger { color: var(--danger); }
+
+  @media print {
+    .sidebar, .editor-actions, .btn, .table-input { display: none !important; }
+    .main { margin-left: 0; padding: 0; }
+    .table-input { display: block !important; border: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <h1>📋 СметаПро</h1>
+      <p>Система управления сметами</p>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-section">Главное</div>
+      <div class="nav-item active" onclick="showPage('estimates')">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+        Мои сметы
+      </div>
+      <div class="nav-section">Инструменты</div>
+      <div class="nav-item" onclick="showPage('catalog')">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"/></svg>
+        Справочник позиций
+      </div>
+      <div class="nav-item" onclick="showPage('import')">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"/></svg>
+        Импорт КП
+      </div>
+    </nav>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main">
+
+    <!-- PAGE: ESTIMATES LIST -->
+    <div id="page-estimates" class="page active">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Мои сметы</div>
+          <div class="text-sm text-muted mt-1" id="estimates-count">Загрузка...</div>
+        </div>
+        <button class="btn btn-primary" onclick="openNewEstimateModal()">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+          Новая смета
+        </button>
+      </div>
+      <div id="estimates-grid" class="estimates-grid"></div>
+    </div>
+
+    <!-- PAGE: ESTIMATE EDITOR -->
+    <div id="page-editor" class="page">
+      <div class="editor-header">
+        <div>
+          <div style="font-size:13px;color:var(--muted);margin-bottom:4px;">
+            <span style="cursor:pointer;color:var(--accent)" onclick="showPage('estimates')">← Все сметы</span>
+          </div>
+          <div class="editor-title" id="editor-title">Смета</div>
+          <div class="editor-meta" id="editor-meta"></div>
+        </div>
+        <div class="editor-actions">
+          <button class="btn btn-outline btn-sm" onclick="openEditMetaModal()">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+            Реквизиты
+          </button>
+          <button class="btn btn-ghost btn-sm" onclick="exportExcel()">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 7V3.5L18.5 9H13z"/></svg>
+            Excel
+          </button>
+          <button class="btn btn-ghost btn-sm" onclick="exportPDF()">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 2H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-8.5 7.5c0 .83-.67 1.5-1.5 1.5H9v2H7.5V7H10c.83 0 1.5.67 1.5 1.5v1zm5 2c0 .83-.67 1.5-1.5 1.5h-2.5V7H15c.83 0 1.5.67 1.5 1.5v3zm4-3H19v1h1.5V11H19v2h-1.5V7h3v1.5z"/></svg>
+            PDF
+          </button>
+          <button class="btn btn-primary btn-sm" onclick="openCatalogModal(null)">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+            Из справочника
+          </button>
+        </div>
+      </div>
+
+      <!-- Toolbar -->
+      <div class="flex gap-2 mt-3" style="margin-bottom:16px;">
+        <button class="btn btn-outline btn-sm" onclick="addSection()">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+          Добавить раздел
+        </button>
+        <button class="btn btn-outline btn-sm" onclick="addManualItem(null)">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+          Добавить позицию вручную
+        </button>
+      </div>
+
+      <!-- Table -->
+      <div class="table-wrap" id="estimate-table-wrap">
+        <table id="estimate-table">
+          <thead>
+            <tr>
+              <th style="width:36px">№</th>
+              <th style="min-width:220px">Наименование работ</th>
+              <th style="width:60px">Ед.из.</th>
+              <th style="width:65px">Кол-во</th>
+              <th style="width:90px">Мат. цена</th>
+              <th style="width:90px">Раб. цена</th>
+              <th style="width:95px">Мат. итого</th>
+              <th style="width:95px">Раб. итого</th>
+              <th style="width:100px">Всего, руб.</th>
+              <th style="width:120px">Примечание</th>
+              <th style="width:36px"></th>
+            </tr>
+          </thead>
+          <tbody id="estimate-tbody"></tbody>
+        </table>
+      </div>
+
+      <!-- Bottom -->
+      <div class="flex gap-3 mt-4" style="align-items:flex-start;justify-content:flex-end;">
+        <div class="totals-panel" id="totals-panel"></div>
+      </div>
+    </div>
+
+    <!-- PAGE: CATALOG -->
+    <div id="page-catalog" class="page">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Справочник позиций</div>
+          <div class="text-sm text-muted mt-1" id="catalog-count"></div>
+        </div>
+        <div class="flex gap-2">
+          <button class="btn btn-outline btn-sm" onclick="showPage('import')">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"/></svg>
+            Импортировать КП
+          </button>
+          <button class="btn btn-primary" onclick="openAddCatalogItemModal()">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+            Добавить позицию
+          </button>
+        </div>
+      </div>
+      <div class="catalog-search">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+        <input class="input" id="catalog-search-input" placeholder="Поиск по наименованию..." oninput="renderCatalog()">
+      </div>
+      <div id="catalog-list" class="card card-body"></div>
+    </div>
+
+    <!-- PAGE: IMPORT -->
+    <div id="page-import" class="page">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Импорт КП из Excel</div>
+          <div class="text-sm text-muted mt-1">Загрузите файлы Excel для пополнения справочника позиций</div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:20px;">
+        <div class="card-body">
+          <div class="drop-zone" id="drop-zone" onclick="document.getElementById('file-input').click()" ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event)">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+            <p><strong>Перетащите файл</strong> или нажмите для выбора</p>
+            <p style="font-size:12px;margin-top:6px;">Поддерживаются файлы .xlsx, .xls</p>
+            <input type="file" id="file-input" accept=".xlsx,.xls" style="display:none" onchange="handleFileInput(event)">
+          </div>
+        </div>
+      </div>
+
+      <div id="import-preview" style="display:none;">
+        <div class="stats-grid" id="import-stats"></div>
+        <div class="card">
+          <div class="card-header">
+            <span class="font-bold" style="color:var(--primary)">Найденные позиции</span>
+            <div class="flex gap-2">
+              <button class="btn btn-outline btn-sm" onclick="selectAllImport()">Выбрать все</button>
+              <button class="btn btn-primary btn-sm" onclick="doImport()">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                Импортировать выбранные
+              </button>
+            </div>
+          </div>
+          <div class="card-body" id="import-list"></div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- MODALS -->
+
+<!-- New Estimate Modal -->
+<div class="modal-overlay" id="modal-new-estimate">
+  <div class="modal" style="max-width:500px;">
+    <div class="modal-header">
+      <h3>Новая смета</h3>
+      <button class="modal-close" onclick="closeModal('modal-new-estimate')">
+        <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="form-grid form-grid-2">
+          <div class="form-group">
+            <label class="form-label">Номер сметы</label>
+            <input class="input" id="new-number" placeholder="001">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Дата</label>
+            <input class="input" type="date" id="new-date">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Наименование объекта *</label>
+          <input class="input" id="new-title" placeholder="Ремонт квартиры по адресу...">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Заказчик</label>
+          <input class="input" id="new-client" placeholder="ФИО или название организации">
+        </div>
+        <div class="form-grid form-grid-3">
+          <div class="form-group">
+            <label class="form-label">Скидка, %</label>
+            <input class="input" type="number" id="new-discount" value="0" min="0" max="100" step="0.1">
+          </div>
+          <div class="form-group">
+            <label class="form-label">НДС, %</label>
+            <input class="input" type="number" id="new-vat" value="0" min="0" max="100" step="0.1">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Статус</label>
+            <select class="input" id="new-status">
+              <option value="draft">Черновик</option>
+              <option value="sent">Отправлена</option>
+              <option value="approved">Согласована</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Примечания</label>
+          <textarea class="input" id="new-notes" rows="2" placeholder="Дополнительная информация..."></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('modal-new-estimate')">Отмена</button>
+      <button class="btn btn-primary" onclick="createEstimate()">Создать смету</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Meta Modal -->
+<div class="modal-overlay" id="modal-edit-meta">
+  <div class="modal" style="max-width:500px;">
+    <div class="modal-header">
+      <h3>Реквизиты сметы</h3>
+      <button class="modal-close" onclick="closeModal('modal-edit-meta')">
+        <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="form-grid form-grid-2">
+          <div class="form-group">
+            <label class="form-label">Номер сметы</label>
+            <input class="input" id="edit-number">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Дата</label>
+            <input class="input" type="date" id="edit-date">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Наименование объекта</label>
+          <input class="input" id="edit-title">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Заказчик</label>
+          <input class="input" id="edit-client">
+        </div>
+        <div class="form-grid form-grid-3">
+          <div class="form-group">
+            <label class="form-label">Скидка, %</label>
+            <input class="input" type="number" id="edit-discount" min="0" max="100" step="0.1">
+          </div>
+          <div class="form-group">
+            <label class="form-label">НДС, %</label>
+            <input class="input" type="number" id="edit-vat" min="0" max="100" step="0.1">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Статус</label>
+            <select class="input" id="edit-status">
+              <option value="draft">Черновик</option>
+              <option value="sent">Отправлена</option>
+              <option value="approved">Согласована</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Примечания</label>
+          <textarea class="input" id="edit-notes" rows="2"></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('modal-edit-meta')">Отмена</button>
+      <button class="btn btn-primary" onclick="saveEstimateMeta()">Сохранить</button>
+    </div>
+  </div>
+</div>
+
+<!-- Catalog Modal (picker) -->
+<div class="modal-overlay" id="modal-catalog">
+  <div class="modal" style="max-width:720px;">
+    <div class="modal-header">
+      <h3>Выбор позиции из справочника</h3>
+      <button class="modal-close" onclick="closeModal('modal-catalog')">
+        <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="modal-body" style="padding-top:12px;">
+      <div class="catalog-search">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+        <input class="input" id="picker-search" placeholder="Поиск..." oninput="renderCatalogPicker()">
+      </div>
+      <div id="catalog-picker-list" style="max-height:400px;overflow-y:auto;"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Add Catalog Item Modal -->
+<div class="modal-overlay" id="modal-add-catalog">
+  <div class="modal" style="max-width:480px;">
+    <div class="modal-header">
+      <h3 id="add-catalog-modal-title">Добавить позицию</h3>
+      <button class="modal-close" onclick="closeModal('modal-add-catalog')">
+        <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="cat-item-id">
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label">Наименование *</label>
+          <input class="input" id="cat-name" placeholder="Штробление стен под электропроводку">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Категория</label>
+          <input class="input" id="cat-category" placeholder="Электрика" list="category-list">
+          <datalist id="category-list"></datalist>
+        </div>
+        <div class="form-grid form-grid-3">
+          <div class="form-group">
+            <label class="form-label">Ед. изм.</label>
+            <input class="input" id="cat-unit" placeholder="м.п." list="unit-list">
+            <datalist id="unit-list">
+              <option value="шт">
+              <option value="м.п.">
+              <option value="м²">
+              <option value="м³">
+              <option value="услуга">
+              <option value="компл.">
+              <option value="кг">
+            </datalist>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Цена матер., руб.</label>
+            <input class="input" type="number" id="cat-mat" placeholder="0" min="0" step="0.01">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Цена работы, руб.</label>
+            <input class="input" type="number" id="cat-lab" placeholder="0" min="0" step="0.01">
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('modal-add-catalog')">Отмена</button>
+      <button class="btn btn-primary" onclick="saveCatalogItem()">Сохранить</button>
+    </div>
+  </div>
+</div>
+
+<!-- Notification -->
+<div class="notification" id="notification"></div>
+
+<script>
+// ============================================================
+// DATA LAYER
+// ============================================================
+let db = {
+  estimates: [],
+  catalog: [],
+  nextEstimateId: 1,
+  nextItemId: 1,
+  nextSectionId: 1,
+  nextCatalogId: 1
+};
+
+function saveDB() {
+  try { localStorage.setItem('smeta_db', JSON.stringify(db)); } catch(e) {}
+}
+function loadDB() {
+  try {
+    const raw = localStorage.getItem('smeta_db');
+    if (raw) { db = JSON.parse(raw); }
+  } catch(e) {}
+  if (!db.catalog || db.catalog.length === 0) {
+    db.catalog = getDefaultCatalog();
+    db.nextCatalogId = db.catalog.length + 1;
+    saveDB();
+  }
+}
+
+function getDefaultCatalog() {
+  return [
+    // Демонтажные работы
+    {id:1,name:'Демонтаж перегородок (разбор)',category:'Демонтажные работы',unit:'услуга',materialPrice:5000,laborPrice:40000},
+    {id:2,name:'Затаривание в мешки, вынос и погрузка',category:'Демонтажные работы',unit:'услуга',materialPrice:2000,laborPrice:15000},
+    {id:3,name:'Демонтаж балконной двери и ступени',category:'Демонтажные работы',unit:'услуга',materialPrice:2000,laborPrice:15000},
+    {id:4,name:'Демонтаж радиаторов + упаковка',category:'Демонтажные работы',unit:'шт',materialPrice:0,laborPrice:2500},
+    {id:5,name:'Уборка черновая',category:'Демонтажные работы',unit:'услуга',materialPrice:0,laborPrice:5000},
+    // Электрика
+    {id:6,name:'Штробление стен под электропроводку',category:'Электрика',unit:'м.п.',materialPrice:50,laborPrice:600},
+    {id:7,name:'Штробление пола',category:'Электрика',unit:'м.п.',materialPrice:50,laborPrice:500},
+    {id:8,name:'Разведение электропроводки под розетки и выключатели',category:'Электрика',unit:'м.п.',materialPrice:150,laborPrice:150},
+    {id:9,name:'Разведение освещения',category:'Электрика',unit:'м.п.',materialPrice:100,laborPrice:120},
+    {id:10,name:'Коммутация распределительных коробок',category:'Электрика',unit:'шт.',materialPrice:250,laborPrice:1200},
+    {id:11,name:'Прокладка интернет кабеля',category:'Электрика',unit:'м.п.',materialPrice:100,laborPrice:120},
+    {id:12,name:'Прокладка ТВ кабеля',category:'Электрика',unit:'м.п.',materialPrice:100,laborPrice:120},
+    {id:13,name:'Установка и сборка щита',category:'Электрика',unit:'шт.',materialPrice:45000,laborPrice:30000},
+    {id:14,name:'Установка розеток и выключателей',category:'Электрика',unit:'шт.',materialPrice:300,laborPrice:500},
+    {id:15,name:'Установка светильников',category:'Электрика',unit:'шт.',materialPrice:0,laborPrice:800},
+    // Сантехника
+    {id:16,name:'Разводка труб холодного водоснабжения',category:'Сантехника',unit:'м.п.',materialPrice:400,laborPrice:600},
+    {id:17,name:'Разводка труб горячего водоснабжения',category:'Сантехника',unit:'м.п.',materialPrice:500,laborPrice:600},
+    {id:18,name:'Установка смесителя',category:'Сантехника',unit:'шт.',materialPrice:0,laborPrice:2500},
+    {id:19,name:'Установка унитаза',category:'Сантехника',unit:'шт.',materialPrice:0,laborPrice:4000},
+    {id:20,name:'Установка ванны/душевой кабины',category:'Сантехника',unit:'шт.',materialPrice:0,laborPrice:8000},
+    {id:21,name:'Установка радиатора отопления',category:'Сантехника',unit:'шт.',materialPrice:2000,laborPrice:5000},
+    {id:22,name:'Установка счётчиков воды',category:'Сантехника',unit:'шт.',materialPrice:1500,laborPrice:2000},
+    // Стены
+    {id:23,name:'Штукатурка стен (маяки)',category:'Стены',unit:'м²',materialPrice:250,laborPrice:700},
+    {id:24,name:'Шпаклёвка стен финишная',category:'Стены',unit:'м²',materialPrice:150,laborPrice:400},
+    {id:25,name:'Грунтовка стен',category:'Стены',unit:'м²',materialPrice:50,laborPrice:100},
+    {id:26,name:'Поклейка обоев',category:'Стены',unit:'м²',materialPrice:200,laborPrice:350},
+    {id:27,name:'Покраска стен',category:'Стены',unit:'м²',materialPrice:150,laborPrice:250},
+    {id:28,name:'Укладка плитки на стены',category:'Стены',unit:'м²',materialPrice:800,laborPrice:1500},
+    {id:29,name:'Монтаж гипсокартона на стены',category:'Стены',unit:'м²',materialPrice:350,laborPrice:600},
+    // Полы
+    {id:30,name:'Стяжка пола (полусухая)',category:'Полы',unit:'м²',materialPrice:400,laborPrice:600},
+    {id:31,name:'Укладка ламината',category:'Полы',unit:'м²',materialPrice:500,laborPrice:400},
+    {id:32,name:'Укладка паркетной доски',category:'Полы',unit:'м²',materialPrice:600,laborPrice:600},
+    {id:33,name:'Укладка плитки на пол',category:'Полы',unit:'м²',materialPrice:800,laborPrice:1500},
+    {id:34,name:'Укладка линолеума',category:'Полы',unit:'м²',materialPrice:300,laborPrice:200},
+    {id:35,name:'Гидроизоляция пола',category:'Полы',unit:'м²',materialPrice:250,laborPrice:300},
+    // Потолки
+    {id:36,name:'Шпаклёвка потолка',category:'Потолки',unit:'м²',materialPrice:150,laborPrice:500},
+    {id:37,name:'Покраска потолка',category:'Потолки',unit:'м²',materialPrice:150,laborPrice:300},
+    {id:38,name:'Монтаж натяжного потолка',category:'Потолки',unit:'м²',materialPrice:600,laborPrice:500},
+    {id:39,name:'Монтаж гипсокартонного потолка',category:'Потолки',unit:'м²',materialPrice:400,laborPrice:700},
+    // Двери и окна
+    {id:40,name:'Установка межкомнатной двери',category:'Двери и окна',unit:'шт.',materialPrice:3000,laborPrice:5000},
+    {id:41,name:'Установка входной двери',category:'Двери и окна',unit:'шт.',materialPrice:5000,laborPrice:8000},
+    {id:42,name:'Откосы оконные (пластик)',category:'Двери и окна',unit:'м.п.',materialPrice:500,laborPrice:800},
+    {id:43,name:'Подоконник',category:'Двери и окна',unit:'м.п.',materialPrice:800,laborPrice:600},
+  ];
+}
+
+// ============================================================
+// STATE
+// ============================================================
+let currentEstimateId = null;
+let catalogPickerTargetSectionId = null;
+let importPreviewItems = [];
+
+// ============================================================
+// UTILS
+// ============================================================
+function fmt(n) {
+  return Number(n || 0).toLocaleString('ru-RU', {minimumFractionDigits:2, maximumFractionDigits:2});
+}
+function num(v) { return parseFloat(v) || 0; }
+function uid() { return Date.now() + Math.random(); }
+function notify(msg, type='success') {
+  const el = document.getElementById('notification');
+  el.textContent = (type==='success'?'✓ ':'⚠ ') + msg;
+  el.style.background = type==='success' ? 'var(--success)' : 'var(--warning)';
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 2800);
+}
+
+// ============================================================
+// NAVIGATION
+// ============================================================
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  const navMap = {estimates:0, catalog:1, import:2};
+  document.querySelectorAll('.nav-item')[navMap[name]]?.classList.add('active');
+  if (name === 'estimates') renderEstimatesList();
+  if (name === 'catalog') renderCatalog();
+  if (name === 'import') resetImport();
+}
+
+// ============================================================
+// MODAL
+// ============================================================
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+window.addEventListener('click', e => {
+  if (e.target.classList.contains('modal-overlay')) {
+    e.target.classList.remove('open');
+  }
+});
+
+// ============================================================
+// ESTIMATES LIST
+// ============================================================
+function renderEstimatesList() {
+  const grid = document.getElementById('estimates-grid');
+  const count = document.getElementById('estimates-count');
+  const estimates = db.estimates;
+  count.textContent = estimates.length === 0 ? 'Нет смет' : `Всего смет: ${estimates.length}`;
+  if (estimates.length === 0) {
+    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+      <p>Нет смет. Создайте первую!</p>
+    </div>`;
+    return;
+  }
+  grid.innerHTML = estimates.map(e => {
+    const totals = calcEstimateTotals(e);
+    const statusMap = {draft:['badge-orange','Черновик'], sent:['badge-blue','Отправлена'], approved:['badge-green','Согласована']};
+    const [cls, label] = statusMap[e.status] || ['badge-orange','Черновик'];
+    return `<div class="estimate-card" onclick="openEstimate(${e.id})">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
+        <div class="estimate-card-title">${e.title || 'Без названия'}</div>
+        <span class="badge ${cls}">${label}</span>
+      </div>
+      <div class="estimate-card-meta">
+        ${e.number ? `<span>📄 Смета №${e.number}</span>` : ''}
+        ${e.client ? `<span>👤 ${e.client}</span>` : ''}
+        <span>📅 ${e.date || 'Дата не указана'}</span>
+      </div>
+      <div class="estimate-card-total">
+        <div>
+          <div style="font-size:11px;color:var(--muted)">Итого к оплате</div>
+          <div class="estimate-card-amount">${fmt(totals.grandTotal)} руб.</div>
+        </div>
+        <button class="btn btn-danger btn-sm" onclick="event.stopPropagation();deleteEstimate(${e.id})">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="14" height="14"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+        </button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function openNewEstimateModal() {
+  const today = new Date().toISOString().slice(0,10);
+  document.getElementById('new-number').value = String(db.nextEstimateId).padStart(3,'0');
+  document.getElementById('new-date').value = today;
+  document.getElementById('new-title').value = '';
+  document.getElementById('new-client').value = '';
+  document.getElementById('new-discount').value = '0';
+  document.getElementById('new-vat').value = '0';
+  document.getElementById('new-status').value = 'draft';
+  document.getElementById('new-notes').value = '';
+  openModal('modal-new-estimate');
+}
+
+function createEstimate() {
+  const title = document.getElementById('new-title').value.trim();
+  if (!title) { alert('Укажите наименование объекта'); return; }
+  const est = {
+    id: db.nextEstimateId++,
+    number: document.getElementById('new-number').value.trim(),
+    title,
+    client: document.getElementById('new-client').value.trim(),
+    date: document.getElementById('new-date').value,
+    discountPercent: num(document.getElementById('new-discount').value),
+    vatPercent: num(document.getElementById('new-vat').value),
+    status: document.getElementById('new-status').value,
+    notes: document.getElementById('new-notes').value.trim(),
+    sections: [],
+    items: []
+  };
+  db.estimates.unshift(est);
+  saveDB();
+  closeModal('modal-new-estimate');
+  openEstimate(est.id);
+  notify('Смета создана');
+}
+
+function deleteEstimate(id) {
+  if (!confirm('Удалить смету? Это действие нельзя отменить.')) return;
+  db.estimates = db.estimates.filter(e => e.id !== id);
+  saveDB();
+  renderEstimatesList();
+  notify('Смета удалена');
+}
+
+// ============================================================
+// ESTIMATE EDITOR
+// ============================================================
+function openEstimate(id) {
+  currentEstimateId = id;
+  showPage('editor');
+  renderEditor();
+}
+
+function getEstimate() {
+  return db.estimates.find(e => e.id === currentEstimateId);
+}
+
+function renderEditor() {
+  const est = getEstimate();
+  if (!est) return;
+  document.getElementById('editor-title').textContent =
+    (est.number ? `Смета №${est.number} — ` : '') + est.title;
+  const metaParts = [];
+  if (est.client) metaParts.push(`👤 ${est.client}`);
+  if (est.date) metaParts.push(`📅 ${est.date}`);
+  if (est.discountPercent > 0) metaParts.push(`<span class="badge badge-orange">Скидка ${est.discountPercent}%</span>`);
+  if (est.vatPercent > 0) metaParts.push(`<span class="badge badge-blue">НДС ${est.vatPercent}%</span>`);
+  document.getElementById('editor-meta').innerHTML = metaParts.join(' ');
+  renderTable();
+  renderTotals();
+}
+
+function renderTable() {
+  const est = getEstimate();
+  const tbody = document.getElementById('estimate-tbody');
+  let html = '';
+  let globalIdx = 0;
+
+  est.sections.forEach(section => {
+    const secTotal = section.items.reduce((s, it) => s + calcItemTotal(it), 0);
+    html += `<tr class="section-row">
+      <td></td>
+      <td colspan="7">
+        <input class="table-input" style="color:white;font-weight:700" value="${esc(section.name)}"
+          onchange="updateSectionName(${section.id}, this.value)">
+      </td>
+      <td class="computed" style="color:#93c5fd">${fmt(secTotal)}</td>
+      <td>
+        <div style="display:flex;gap:4px;justify-content:flex-end">
+          <button class="btn btn-sm" style="padding:2px 6px;font-size:11px;background:rgba(255,255,255,0.15);color:white;border:1px solid rgba(255,255,255,0.3)" 
+            onclick="openCatalogModal(${section.id})" title="Из справочника">+справ.</button>
+          <button class="btn btn-sm" style="padding:2px 6px;font-size:11px;background:rgba(255,255,255,0.15);color:white;border:1px solid rgba(255,255,255,0.3)" 
+            onclick="addManualItem(${section.id})" title="Вручную">+ручная</button>
+        </div>
+      </td>
+      <td>
+        <button onclick="deleteSection(${section.id})" style="background:none;border:none;cursor:pointer;color:#fca5a5" title="Удалить раздел">
+          <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+        </button>
+      </td>
+    </tr>`;
+    section.items.forEach((item, i) => {
+      globalIdx++;
+      html += itemRowHTML(item, globalIdx, i);
+    });
+  });
+
+  est.items.forEach((item, i) => {
+    globalIdx++;
+    html += itemRowHTML(item, globalIdx, i);
+  });
+
+  if (globalIdx === 0 && est.sections.length === 0) {
+    html = `<tr><td colspan="11" style="text-align:center;padding:40px;color:var(--muted)">
+      Смета пуста. Добавьте раздел или позицию.
+    </td></tr>`;
+  }
+
+  tbody.innerHTML = html;
+}
+
+function itemRowHTML(item, rowNum, i) {
+  const t = calcItemTotal(item);
+  const alt = i % 2 === 1 ? 'alt' : '';
+  return `<tr class="item-row ${alt}" data-item-id="${item.id}">
+    <td style="text-align:center;color:var(--muted);font-size:12px">${rowNum}</td>
+    <td><input class="table-input" value="${esc(item.name)}" onchange="updateItemField(${item.id},'name',this.value)" style="font-weight:500"></td>
+    <td><input class="table-input" value="${esc(item.unit)}" onchange="updateItemField(${item.id},'unit',this.value)" style="text-align:center"></td>
+    <td><input class="table-input num" type="number" step="any" min="0" value="${item.qty}" onchange="updateItemField(${item.id},'qty',this.value)" oninput="updateItemField(${item.id},'qty',this.value)"></td>
+    <td><input class="table-input num" type="number" step="any" min="0" value="${item.matPrice}" onchange="updateItemField(${item.id},'matPrice',this.value)" oninput="updateItemField(${item.id},'matPrice',this.value)"></td>
+    <td><input class="table-input num" type="number" step="any" min="0" value="${item.labPrice}" onchange="updateItemField(${item.id},'labPrice',this.value)" oninput="updateItemField(${item.id},'labPrice',this.value)"></td>
+    <td class="computed" style="color:var(--muted)">${fmt(t.matTotal)}</td>
+    <td class="computed" style="color:var(--muted)">${fmt(t.labTotal)}</td>
+    <td class="computed" style="color:var(--primary);font-weight:700">${fmt(t.total)}</td>
+    <td><input class="table-input" value="${esc(item.notes||'')}" onchange="updateItemField(${item.id},'notes',this.value)" placeholder="Примечание..." style="font-size:12px;color:var(--muted)"></td>
+    <td>
+      <button onclick="deleteItem(${item.id})" style="background:none;border:none;cursor:pointer;color:#d1d5db" title="Удалить" onmouseover="this.style.color='var(--danger)'" onmouseout="this.style.color='#d1d5db'">
+        <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+      </button>
+    </td>
+  </tr>`;
+}
+
+function esc(s) { return String(s||'').replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
+
+function calcItemTotal(item) {
+  const qty = num(item.qty);
+  const matTotal = qty * num(item.matPrice);
+  const labTotal = qty * num(item.labPrice);
+  return { matTotal, labTotal, total: matTotal + labTotal };
+}
+
+function calcEstimateTotals(est) {
+  let matTotal = 0, labTotal = 0;
+  const allItems = [...(est.items||[]), ...(est.sections||[]).flatMap(s => s.items||[])];
+  allItems.forEach(it => {
+    const t = calcItemTotal(it);
+    matTotal += t.matTotal;
+    labTotal += t.labTotal;
+  });
+  const subtotal = matTotal + labTotal;
+  const discountAmount = subtotal * (num(est.discountPercent) / 100);
+  const afterDiscount = subtotal - discountAmount;
+  const vatAmount = afterDiscount * (num(est.vatPercent) / 100);
+  const grandTotal = afterDiscount + vatAmount;
+  return { matTotal, labTotal, subtotal, discountAmount, afterDiscount, vatAmount, grandTotal };
+}
+
+function renderTotals() {
+  const est = getEstimate();
+  const t = calcEstimateTotals(est);
+  let html = `<div class="totals-title">Итоги сметы</div>
+    <div class="totals-row"><span class="totals-label">Материалы:</span><span class="totals-value">${fmt(t.matTotal)} руб.</span></div>
+    <div class="totals-row"><span class="totals-label">Работы:</span><span class="totals-value">${fmt(t.labTotal)} руб.</span></div>
+    <div class="totals-row separator"><span class="totals-label" style="font-weight:700">Подытог:</span><span class="totals-value">${fmt(t.subtotal)} руб.</span></div>`;
+  if (t.discountAmount > 0) {
+    html += `<div class="totals-row"><span class="totals-label">Скидка (${est.discountPercent}%):</span><span class="totals-value red">−${fmt(t.discountAmount)} руб.</span></div>
+    <div class="totals-row"><span class="totals-label">После скидки:</span><span class="totals-value">${fmt(t.afterDiscount)} руб.</span></div>`;
+  }
+  if (t.vatAmount > 0) {
+    html += `<div class="totals-row"><span class="totals-label">НДС (${est.vatPercent}%):</span><span class="totals-value">${fmt(t.vatAmount)} руб.</span></div>`;
+  }
+  html += `<div class="totals-row grand"><span class="totals-label" style="font-weight:800;color:var(--primary)">ИТОГО К ОПЛАТЕ:</span><span class="totals-value accent">${fmt(t.grandTotal)} руб.</span></div>`;
+  document.getElementById('totals-panel').innerHTML = html;
+}
+
+// ============================================================
+// SECTIONS & ITEMS
+// ============================================================
+function addSection() {
+  const name = prompt('Название раздела:', 'Новый раздел');
+  if (!name) return;
+  const est = getEstimate();
+  est.sections.push({ id: db.nextSectionId++, name: name.trim(), items: [] });
+  saveDB();
+  renderTable();
+  renderTotals();
+}
+
+function deleteSection(id) {
+  if (!confirm('Удалить раздел и все его позиции?')) return;
+  const est = getEstimate();
+  est.sections = est.sections.filter(s => s.id !== id);
+  saveDB();
+  renderTable();
+  renderTotals();
+  notify('Раздел удалён');
+}
+
+function updateSectionName(id, name) {
+  const est = getEstimate();
+  const sec = est.sections.find(s => s.id === id);
+  if (sec) { sec.name = name; saveDB(); }
+}
+
+function addManualItem(sectionId) {
+  const est = getEstimate();
+  const item = {
+    id: db.nextItemId++,
+    name: 'Новая позиция',
+    unit: 'шт.',
+    qty: 1,
+    matPrice: 0,
+    labPrice: 0,
+    notes: ''
+  };
+  if (sectionId !== null) {
+    const sec = est.sections.find(s => s.id === sectionId);
+    if (sec) sec.items.push(item);
+  } else {
+    est.items.push(item);
+  }
+  saveDB();
+  renderTable();
+  renderTotals();
+}
+
+function updateItemField(itemId, field, value) {
+  const est = getEstimate();
+  let item = est.items.find(i => i.id === itemId);
+  if (!item) {
+    for (const sec of est.sections) {
+      item = sec.items.find(i => i.id === itemId);
+      if (item) break;
+    }
+  }
+  if (!item) return;
+  item[field] = (['qty','matPrice','labPrice'].includes(field)) ? num(value) : value;
+  saveDB();
+  // Update computed cells only
+  const row = document.querySelector(`tr[data-item-id="${itemId}"]`);
+  if (row) {
+    const t = calcItemTotal(item);
+    const tds = row.querySelectorAll('.computed');
+    if (tds[0]) tds[0].textContent = fmt(t.matTotal);
+    if (tds[1]) tds[1].textContent = fmt(t.labTotal);
+    if (tds[2]) tds[2].textContent = fmt(t.total);
+  }
+  renderTotals();
+  // Also update section totals
+  updateSectionTotals();
+}
+
+function updateSectionTotals() {
+  const est = getEstimate();
+  est.sections.forEach(sec => {
+    const total = sec.items.reduce((s,it) => s + calcItemTotal(it).total, 0);
+    const rows = document.querySelectorAll('.section-row');
+    rows.forEach(row => {
+      const btn = row.querySelector('button[onclick^="deleteSection(' + sec.id + ')"]');
+      if (btn) {
+        const computedCells = row.querySelectorAll('.computed');
+        if (computedCells[0]) computedCells[0].textContent = fmt(total);
+      }
+    });
+  });
+}
+
+function deleteItem(itemId) {
+  const est = getEstimate();
+  est.items = est.items.filter(i => i.id !== itemId);
+  est.sections.forEach(sec => {
+    sec.items = sec.items.filter(i => i.id !== itemId);
+  });
+  saveDB();
+  renderTable();
+  renderTotals();
+}
+
+// ============================================================
+// META EDIT
+// ============================================================
+function openEditMetaModal() {
+  const est = getEstimate();
+  document.getElementById('edit-number').value = est.number || '';
+  document.getElementById('edit-date').value = est.date || '';
+  document.getElementById('edit-title').value = est.title || '';
+  document.getElementById('edit-client').value = est.client || '';
+  document.getElementById('edit-discount').value = est.discountPercent || 0;
+  document.getElementById('edit-vat').value = est.vatPercent || 0;
+  document.getElementById('edit-status').value = est.status || 'draft';
+  document.getElementById('edit-notes').value = est.notes || '';
+  openModal('modal-edit-meta');
+}
+
+function saveEstimateMeta() {
+  const est = getEstimate();
+  est.number = document.getElementById('edit-number').value.trim();
+  est.date = document.getElementById('edit-date').value;
+  est.title = document.getElementById('edit-title').value.trim() || est.title;
+  est.client = document.getElementById('edit-client').value.trim();
+  est.discountPercent = num(document.getElementById('edit-discount').value);
+  est.vatPercent = num(document.getElementById('edit-vat').value);
+  est.status = document.getElementById('edit-status').value;
+  est.notes = document.getElementById('edit-notes').value.trim();
+  saveDB();
+  closeModal('modal-edit-meta');
+  renderEditor();
+  notify('Реквизиты сохранены');
+}
+
+// ============================================================
+// CATALOG
+// ============================================================
+function renderCatalog() {
+  const search = (document.getElementById('catalog-search-input')?.value || '').toLowerCase();
+  const filtered = db.catalog.filter(i =>
+    i.name.toLowerCase().includes(search) ||
+    (i.category||'').toLowerCase().includes(search)
+  );
+  const byCategory = {};
+  filtered.forEach(i => {
+    const cat = i.category || 'Прочее';
+    if (!byCategory[cat]) byCategory[cat] = [];
+    byCategory[cat].push(i);
+  });
+
+  document.getElementById('catalog-count').textContent = `Позиций: ${db.catalog.length}`;
+
+  // Update category datalist
+  const cats = [...new Set(db.catalog.map(i => i.category).filter(Boolean))];
+  document.getElementById('category-list').innerHTML = cats.map(c => `<option value="${c}">`).join('');
+
+  const list = document.getElementById('catalog-list');
+  if (filtered.length === 0) {
+    list.innerHTML = '<div class="empty-state"><p>Ничего не найдено</p></div>';
+    return;
+  }
+
+  list.innerHTML = Object.entries(byCategory).map(([cat, items]) => `
+    <div class="catalog-category">${cat} (${items.length})</div>
+    ${items.map(item => `
+      <div class="catalog-item">
+        <div>
+          <div class="catalog-item-name">${item.name}</div>
+          <div class="catalog-item-prices">
+            ${item.materialPrice > 0 ? `Мат: ${fmt(item.materialPrice)} руб.` : ''}
+            ${item.laborPrice > 0 ? ` / Раб: ${fmt(item.laborPrice)} руб.` : ''}
+          </div>
+        </div>
+        <div class="catalog-item-unit">${item.unit}</div>
+        <div class="flex gap-2">
+          <button class="btn btn-outline btn-sm" onclick="openEditCatalogItem(${item.id})">✏️</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteCatalogItem(${item.id})">🗑</button>
+        </div>
+      </div>
+    `).join('')}
+  `).join('');
+}
+
+function openAddCatalogItemModal() {
+  document.getElementById('add-catalog-modal-title').textContent = 'Добавить позицию';
+  document.getElementById('cat-item-id').value = '';
+  document.getElementById('cat-name').value = '';
+  document.getElementById('cat-category').value = '';
+  document.getElementById('cat-unit').value = '';
+  document.getElementById('cat-mat').value = '';
+  document.getElementById('cat-lab').value = '';
+  openModal('modal-add-catalog');
+}
+
+function openEditCatalogItem(id) {
+  const item = db.catalog.find(i => i.id === id);
+  if (!item) return;
+  document.getElementById('add-catalog-modal-title').textContent = 'Редактировать позицию';
+  document.getElementById('cat-item-id').value = id;
+  document.getElementById('cat-name').value = item.name;
+  document.getElementById('cat-category').value = item.category || '';
+  document.getElementById('cat-unit').value = item.unit || '';
+  document.getElementById('cat-mat').value = item.materialPrice || 0;
+  document.getElementById('cat-lab').value = item.laborPrice || 0;
+  openModal('modal-add-catalog');
+}
+
+function saveCatalogItem() {
+  const name = document.getElementById('cat-name').value.trim();
+  if (!name) { alert('Укажите наименование'); return; }
+  const idVal = document.getElementById('cat-item-id').value;
+  if (idVal) {
+    const item = db.catalog.find(i => i.id == idVal);
+    if (item) {
+      item.name = name;
+      item.category = document.getElementById('cat-category').value.trim();
+      item.unit = document.getElementById('cat-unit').value.trim();
+      item.materialPrice = num(document.getElementById('cat-mat').value);
+      item.laborPrice = num(document.getElementById('cat-lab').value);
+    }
+    notify('Позиция обновлена');
+  } else {
+    db.catalog.push({
+      id: db.nextCatalogId++,
+      name,
+      category: document.getElementById('cat-category').value.trim(),
+      unit: document.getElementById('cat-unit').value.trim(),
+      materialPrice: num(document.getElementById('cat-mat').value),
+      laborPrice: num(document.getElementById('cat-lab').value),
+    });
+    notify('Позиция добавлена');
+  }
+  saveDB();
+  closeModal('modal-add-catalog');
+  renderCatalog();
+}
+
+function deleteCatalogItem(id) {
+  if (!confirm('Удалить позицию из справочника?')) return;
+  db.catalog = db.catalog.filter(i => i.id !== id);
+  saveDB();
+  renderCatalog();
+  notify('Удалено');
+}
+
+// ============================================================
+// CATALOG PICKER (in estimate editor)
+// ============================================================
+function openCatalogModal(sectionId) {
+  catalogPickerTargetSectionId = sectionId;
+  document.getElementById('picker-search').value = '';
+  renderCatalogPicker();
+  openModal('modal-catalog');
+}
+
+function renderCatalogPicker() {
+  const search = document.getElementById('picker-search').value.toLowerCase();
+  const filtered = db.catalog.filter(i =>
+    i.name.toLowerCase().includes(search) ||
+    (i.category||'').toLowerCase().includes(search)
+  );
+  const byCategory = {};
+  filtered.forEach(i => {
+    const cat = i.category || 'Прочее';
+    if (!byCategory[cat]) byCategory[cat] = [];
+    byCategory[cat].push(i);
+  });
+
+  const list = document.getElementById('catalog-picker-list');
+  if (filtered.length === 0) {
+    list.innerHTML = '<div style="text-align:center;padding:30px;color:var(--muted)">Ничего не найдено</div>';
+    return;
+  }
+
+  list.innerHTML = Object.entries(byCategory).map(([cat, items]) => `
+    <div class="catalog-category">${cat}</div>
+    ${items.map(item => `
+      <div class="catalog-item" onclick="addItemFromCatalog(${item.id})">
+        <div style="flex:1">
+          <div class="catalog-item-name">${item.name}</div>
+          <div class="catalog-item-prices">
+            Ед.: ${item.unit}
+            ${item.materialPrice > 0 ? ` | Мат: ${fmt(item.materialPrice)} руб.` : ''}
+            ${item.laborPrice > 0 ? ` | Раб: ${fmt(item.laborPrice)} руб.` : ''}
+          </div>
+        </div>
+        <button class="btn btn-primary btn-sm">+ Добавить</button>
+      </div>
+    `).join('')}
+  `).join('');
+}
+
+function addItemFromCatalog(catalogId) {
+  const cItem = db.catalog.find(i => i.id === catalogId);
+  if (!cItem) return;
+  const est = getEstimate();
+  const item = {
+    id: db.nextItemId++,
+    name: cItem.name,
+    unit: cItem.unit,
+    qty: 1,
+    matPrice: cItem.materialPrice,
+    labPrice: cItem.laborPrice,
+    notes: ''
+  };
+  if (catalogPickerTargetSectionId !== null) {
+    const sec = est.sections.find(s => s.id === catalogPickerTargetSectionId);
+    if (sec) sec.items.push(item);
+    else est.items.push(item);
+  } else {
+    est.items.push(item);
+  }
+  saveDB();
+  renderTable();
+  renderTotals();
+  notify(`Добавлено: ${cItem.name}`);
+}
+
+// ============================================================
+// EXPORT EXCEL
+// ============================================================
+function exportExcel() {
+  const est = getEstimate();
+  const wb = XLSX.utils.book_new();
+  const rows = [];
+
+  // Header
+  rows.push([`СМЕТА №${est.number || ''}`, '', `от ${est.date || ''}`, '', '', '', '', '', '']);
+  if (est.client) rows.push([`Заказчик: ${est.client}`]);
+  rows.push([]);
+  rows.push(['№', 'Наименование работ', 'Ед.из.', 'Кол-во', 'Мат. цена', 'Раб. цена', 'Мат. итого', 'Раб. итого', 'Всего, руб.', 'Примечание']);
+
+  let rowNum = 0;
+
+  // Sections
+  est.sections.forEach(sec => {
+    rows.push(['', sec.name, '', '', '', '', '', '', '', '']);
+    sec.items.forEach(item => {
+      rowNum++;
+      const t = calcItemTotal(item);
+      rows.push([rowNum, item.name, item.unit, item.qty, item.matPrice, item.labPrice, t.matTotal, t.labTotal, t.total, item.notes||'']);
+    });
+    const secTotal = sec.items.reduce((s,i) => s + calcItemTotal(i).total, 0);
+    rows.push(['', `Итого по разделу "${sec.name}":`, '', '', '', '', '', '', secTotal, '']);
+    rows.push([]);
+  });
+
+  est.items.forEach(item => {
+    rowNum++;
+    const t = calcItemTotal(item);
+    rows.push([rowNum, item.name, item.unit, item.qty, item.matPrice, item.labPrice, t.matTotal, t.labTotal, t.total, item.notes||'']);
+  });
+
+  // Totals
+  const tot = calcEstimateTotals(est);
+  rows.push([]);
+  rows.push(['', 'Материалы:', '', '', '', '', '', '', tot.matTotal, '']);
+  rows.push(['', 'Работы:', '', '', '', '', '', '', tot.labTotal, '']);
+  rows.push(['', 'Подытог:', '', '', '', '', '', '', tot.subtotal, '']);
+  if (tot.discountAmount > 0) {
+    rows.push(['', `Скидка (${est.discountPercent}%):`, '', '', '', '', '', '', -tot.discountAmount, '']);
+    rows.push(['', 'После скидки:', '', '', '', '', '', '', tot.afterDiscount, '']);
+  }
+  if (tot.vatAmount > 0) {
+    rows.push(['', `НДС (${est.vatPercent}%):`, '', '', '', '', '', '', tot.vatAmount, '']);
+  }
+  rows.push(['', 'ИТОГО К ОПЛАТЕ:', '', '', '', '', '', '', tot.grandTotal, '']);
+
+  if (est.notes) rows.push(['', `Примечания: ${est.notes}`]);
+
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols'] = [
+    {wch:5},{wch:45},{wch:8},{wch:8},{wch:12},{wch:12},{wch:14},{wch:14},{wch:14},{wch:20}
+  ];
+  XLSX.utils.book_append_sheet(wb, ws, 'Смета');
+  XLSX.writeFile(wb, `Смета_${est.number || est.id}_${est.title}.xlsx`);
+  notify('Excel файл скачан');
+}
+
+// ============================================================
+// EXPORT PDF (Print)
+// ============================================================
+function exportPDF() {
+  const est = getEstimate();
+  const tot = calcEstimateTotals(est);
+
+  let itemsHTML = '';
+  let rowNum = 0;
+
+  est.sections.forEach(sec => {
+    const secTotal = sec.items.reduce((s,i) => s + calcItemTotal(i).total, 0);
+    itemsHTML += `<tr style="background:#334155;color:white"><td></td><td colspan="8" style="font-weight:700;padding:6px 8px">${sec.name}</td><td style="text-align:right;font-weight:700;padding:6px 8px">${fmt(secTotal)}</td></tr>`;
+    sec.items.forEach(item => {
+      rowNum++;
+      const t = calcItemTotal(item);
+      itemsHTML += `<tr><td style="text-align:center">${rowNum}</td><td>${item.name}</td><td style="text-align:center">${item.unit}</td><td style="text-align:right">${item.qty}</td><td style="text-align:right">${fmt(item.matPrice)}</td><td style="text-align:right">${fmt(item.labPrice)}</td><td style="text-align:right">${fmt(t.matTotal)}</td><td style="text-align:right">${fmt(t.labTotal)}</td><td style="text-align:right;font-weight:700">${fmt(t.total)}</td><td>${item.notes||''}</td></tr>`;
+    });
+  });
+
+  est.items.forEach(item => {
+    rowNum++;
+    const t = calcItemTotal(item);
+    itemsHTML += `<tr><td style="text-align:center">${rowNum}</td><td>${item.name}</td><td style="text-align:center">${item.unit}</td><td style="text-align:right">${item.qty}</td><td style="text-align:right">${fmt(item.matPrice)}</td><td style="text-align:right">${fmt(item.labPrice)}</td><td style="text-align:right">${fmt(t.matTotal)}</td><td style="text-align:right">${fmt(t.labTotal)}</td><td style="text-align:right;font-weight:700">${fmt(t.total)}</td><td>${item.notes||''}</td></tr>`;
+  });
+
+  let totalsHTML = `
+    <div style="display:flex;justify-content:flex-end;margin-top:20px">
+      <table style="border-collapse:collapse;min-width:320px;font-size:13px">
+        <tr><td style="padding:4px 12px;color:#666">Материалы:</td><td style="padding:4px 12px;text-align:right;font-weight:600">${fmt(tot.matTotal)} руб.</td></tr>
+        <tr><td style="padding:4px 12px;color:#666">Работы:</td><td style="padding:4px 12px;text-align:right;font-weight:600">${fmt(tot.labTotal)} руб.</td></tr>
+        <tr style="border-top:1px solid #e2e8f0"><td style="padding:6px 12px;font-weight:700">Подытог:</td><td style="padding:6px 12px;text-align:right;font-weight:700">${fmt(tot.subtotal)} руб.</td></tr>
+        ${tot.discountAmount > 0 ? `<tr><td style="padding:4px 12px;color:#666">Скидка (${est.discountPercent}%):</td><td style="padding:4px 12px;text-align:right;color:#dc2626;font-weight:600">−${fmt(tot.discountAmount)} руб.</td></tr>` : ''}
+        ${tot.vatAmount > 0 ? `<tr><td style="padding:4px 12px;color:#666">НДС (${est.vatPercent}%):</td><td style="padding:4px 12px;text-align:right;font-weight:600">${fmt(tot.vatAmount)} руб.</td></tr>` : ''}
+        <tr style="border-top:2px solid #2563eb"><td style="padding:8px 12px;font-weight:800;color:#1e3a5f;font-size:14px">ИТОГО К ОПЛАТЕ:</td><td style="padding:8px 12px;text-align:right;font-weight:800;color:#2563eb;font-size:16px">${fmt(tot.grandTotal)} руб.</td></tr>
+      </table>
+    </div>`;
+
+  const printWin = window.open('', '_blank');
+  printWin.document.write(`<!DOCTYPE html><html><head>
+    <meta charset="UTF-8">
+    <title>Смета №${est.number||''} — ${est.title}</title>
+    <style>
+      body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 12px; color: #1e293b; margin: 20px; }
+      h2 { font-size: 16px; margin-bottom: 4px; }
+      .meta { font-size: 12px; color: #64748b; margin-bottom: 16px; }
+      table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+      th { background: #1e3a5f; color: white; padding: 7px 6px; text-align: left; font-size: 11px; }
+      td { padding: 5px 6px; border-bottom: 1px solid #e2e8f0; font-size: 11px; }
+      tr:nth-child(even) td { background: #f8fafc; }
+      @page { size: A4 landscape; margin: 15mm; }
+      @media print { button { display: none; } }
+    </style>
+  </head><body>
+    <h2>СМЕТА №${est.number||'___'} от ${est.date||'___________'} г.</h2>
+    <div class="meta">
+      ${est.title ? `<strong>Объект:</strong> ${est.title}<br>` : ''}
+      ${est.client ? `<strong>Заказчик:</strong> ${est.client}<br>` : ''}
+      ${est.notes ? `<strong>Примечания:</strong> ${est.notes}` : ''}
+    </div>
+    <table>
+      <thead><tr>
+        <th style="width:30px">№</th>
+        <th style="min-width:180px">Наименование работ</th>
+        <th style="width:50px">Ед.из.</th>
+        <th style="width:50px">Кол-во</th>
+        <th style="width:80px">Мат. цена</th>
+        <th style="width:80px">Раб. цена</th>
+        <th style="width:80px">Мат. итого</th>
+        <th style="width:80px">Раб. итого</th>
+        <th style="width:85px">Всего, руб.</th>
+        <th>Примечание</th>
+      </tr></thead>
+      <tbody>${itemsHTML}</tbody>
+    </table>
+    ${totalsHTML}
+    <script>window.onload=()=>{window.print();}<\/script>
+  </body></html>`);
+  printWin.document.close();
+  notify('PDF открыт для печати');
+}
+
+// ============================================================
+// IMPORT KP
+// ============================================================
+function resetImport() {
+  document.getElementById('import-preview').style.display = 'none';
+  document.getElementById('file-input').value = '';
+  importPreviewItems = [];
+}
+
+function onDragOver(e) {
+  e.preventDefault();
+  document.getElementById('drop-zone').classList.add('dragover');
+}
+function onDragLeave(e) {
+  document.getElementById('drop-zone').classList.remove('dragover');
+}
+function onDrop(e) {
+  e.preventDefault();
+  document.getElementById('drop-zone').classList.remove('dragover');
+  const file = e.dataTransfer.files[0];
+  if (file) processImportFile(file);
+}
+function handleFileInput(e) {
+  const file = e.target.files[0];
+  if (file) processImportFile(file);
+}
+
+function processImportFile(file) {
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const wb = XLSX.read(e.target.result, {type:'binary'});
+      const allItems = [];
+      
+      wb.SheetNames.forEach(sheetName => {
+        const ws = wb.Sheets[sheetName];
+        const rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:''});
+        
+        let currentCategory = 'Импортированные';
+        
+        rows.forEach(row => {
+          if (!row || row.length < 2) return;
+          
+          // Detect section headers (rows with text in col 1, no numbers in numeric cols)
+          const col0 = String(row[0]||'').trim();
+          const col1 = String(row[1]||'').trim();
+          
+          // Skip header rows
+          if (col1.toLowerCase().includes('наименование') || col0 === '№' || col0 === 'No') return;
+          
+          // Detect category rows (no numeric data, has text)
+          const hasNumericData = row.slice(3,9).some(v => {
+            const n = parseFloat(String(v).replace(/\s/g,'').replace(',','.'));
+            return !isNaN(n) && n > 0;
+          });
+          
+          if (col1 && !hasNumericData && !col0) {
+            currentCategory = col1;
+            return;
+          }
+          if (col1 && !hasNumericData && (isNaN(parseFloat(col0)) || col0 === '')) {
+            if (col1.length > 3 && col1.length < 60) {
+              currentCategory = col1;
+            }
+            return;
+          }
+          
+          // Try to parse item row
+          const name = col1 || String(row[2]||'').trim();
+          if (!name || name.length < 3) return;
+          
+          // Parse numeric values from different possible positions
+          const parseNum = (v) => {
+            const s = String(v||'').replace(/\s/g,'').replace(',','.');
+            const n = parseFloat(s);
+            return isNaN(n) ? 0 : n;
+          };
+          
+          // Heuristic: unit in col 2, qty in col 3, matPrice in col 4, labPrice in col 5
+          const unit = String(row[2]||'шт.').trim() || 'шт.';
+          const matPrice = parseNum(row[4]);
+          const labPrice = parseNum(row[5]);
+          
+          if ((matPrice > 0 || labPrice > 0) && name.length > 2) {
+            allItems.push({
+              name: name.substring(0, 100),
+              category: currentCategory,
+              unit: unit.substring(0, 20),
+              materialPrice: matPrice,
+              laborPrice: labPrice,
+            });
+          }
+        });
+      });
+
+      // Deduplicate: filter items already in catalog
+      const existingNames = new Set(db.catalog.map(i => i.name.toLowerCase().trim()));
+      const newItems = [];
+      const dupItems = [];
+      
+      allItems.forEach(item => {
+        if (existingNames.has(item.name.toLowerCase().trim())) {
+          dupItems.push(item);
+        } else {
+          newItems.push(item);
+          existingNames.add(item.name.toLowerCase().trim());
+        }
+      });
+
+      // Remove duplicates within imported list itself
+      const uniqueNew = [];
+      const seen = new Set();
+      newItems.forEach(item => {
+        const key = item.name.toLowerCase().trim();
+        if (!seen.has(key)) { seen.add(key); uniqueNew.push(item); }
+      });
+
+      importPreviewItems = uniqueNew.map((item, i) => ({...item, _selected: true, _idx: i}));
+
+      showImportPreview(allItems.length, uniqueNew.length, dupItems.length);
+    } catch(err) {
+      alert('Ошибка чтения файла: ' + err.message);
+    }
+  };
+  reader.readAsBinaryString(file);
+}
+
+function showImportPreview(total, newCount, dupCount) {
+  document.getElementById('import-preview').style.display = 'block';
+  document.getElementById('import-stats').innerHTML = `
+    <div class="stat-card">
+      <div class="stat-value" style="color:var(--accent)">${total}</div>
+      <div class="stat-label">Найдено всего</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value" style="color:var(--success)">${newCount}</div>
+      <div class="stat-label">Новых позиций</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value" style="color:var(--warning)">${dupCount}</div>
+      <div class="stat-label">Пропущено (дубли)</div>
+    </div>
+  `;
+  renderImportList();
+}
+
+function renderImportList() {
+  const list = document.getElementById('import-list');
+  if (importPreviewItems.length === 0) {
+    list.innerHTML = '<div style="text-align:center;padding:20px;color:var(--muted)">Нет новых позиций для импорта (все уже есть в справочнике)</div>';
+    return;
+  }
+  
+  const byCategory = {};
+  importPreviewItems.forEach(item => {
+    const cat = item.category || 'Прочее';
+    if (!byCategory[cat]) byCategory[cat] = [];
+    byCategory[cat].push(item);
+  });
+
+  list.innerHTML = Object.entries(byCategory).map(([cat, items]) => `
+    <div class="catalog-category">${cat}</div>
+    ${items.map(item => `
+      <div class="catalog-item" style="padding:8px 10px">
+        <input type="checkbox" id="imp-${item._idx}" ${item._selected?'checked':''} 
+          onchange="toggleImportItem(${item._idx}, this.checked)" style="margin-right:8px;width:16px;height:16px">
+        <div style="flex:1">
+          <div class="catalog-item-name">${item.name}</div>
+          <div class="catalog-item-prices">
+            ${item.unit} 
+            ${item.materialPrice > 0 ? `| Мат: ${fmt(item.materialPrice)} руб.` : ''}
+            ${item.laborPrice > 0 ? `| Раб: ${fmt(item.laborPrice)} руб.` : ''}
+          </div>
+        </div>
+      </div>
+    `).join('')}
+  `).join('');
+}
+
+function toggleImportItem(idx, checked) {
+  const item = importPreviewItems.find(i => i._idx === idx);
+  if (item) item._selected = checked;
+}
+
+function selectAllImport() {
+  importPreviewItems.forEach(i => i._selected = true);
+  renderImportList();
+}
+
+function doImport() {
+  const selected = importPreviewItems.filter(i => i._selected);
+  if (selected.length === 0) { notify('Выберите позиции для импорта', 'warning'); return; }
+  
+  selected.forEach(item => {
+    db.catalog.push({
+      id: db.nextCatalogId++,
+      name: item.name,
+      category: item.category,
+      unit: item.unit,
+      materialPrice: item.materialPrice,
+      laborPrice: item.laborPrice,
+    });
+  });
+  saveDB();
+  notify(`Импортировано ${selected.length} позиций`);
+  resetImport();
+  showPage('catalog');
+}
+
+// ============================================================
+// INIT
+// ============================================================
+loadDB();
+renderEstimatesList();
+</script>
+</body>
+</html>
